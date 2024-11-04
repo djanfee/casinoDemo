@@ -35,9 +35,9 @@ func (l *ParticipateLogic) Participate(req *types.ParticipateReq) (resp *types.P
 	}
 	if global == nil {
 		creatingGlobal := &model.Global{
-			DepositAmount:   0,
-			Round:           0,
-			NextRoundAmount: 0,
+			DepositAmount:       0,
+			Round:               0,
+			NextRoundIncrAmount: 0,
 		}
 		global, err = l.svcCtx.CasinoSvc.GlobalDao.Create(l.svcCtx.CasinoDb, creatingGlobal)
 		if err != nil {
@@ -75,7 +75,7 @@ func (l *ParticipateLogic) Participate(req *types.ParticipateReq) (resp *types.P
 	user.DepositAmount += req.Value
 
 	// 更新全局数据
-	global.NextRoundAmount += req.Value
+	global.NextRoundIncrAmount += req.Value
 
 	// 存储用户数据
 	_, err = l.svcCtx.CasinoSvc.UserDao.Updates(l.svcCtx.CasinoDb, user, nil)

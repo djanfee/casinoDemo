@@ -67,8 +67,8 @@ func (s *CasinoSvc) CalculateBonus(blockSeq int64, global *model.Global) error {
 
 	// 存储数据
 	global.Round += int64(unBonusRound)
-	global.DepositAmount += global.NextRoundAmount
-	global.NextRoundAmount = 0
+	global.DepositAmount += global.NextRoundIncrAmount
+	global.NextRoundIncrAmount = 0
 	_, err = s.GlobalDao.Updates(s.CasinoDb, global, nil)
 	if err != nil {
 		logx.Error("update global error", logx.Field("error", err))
