@@ -1,0 +1,11 @@
+Name: casino
+Host: 0.0.0.0
+Port: 8888
+Timeout: 80000
+Mysql:
+  Casino:
+    Host: "192.168.0.10"
+    Port: "3306"
+    User: "root"
+    Pwd: "123456"
+    DbName: "casino"

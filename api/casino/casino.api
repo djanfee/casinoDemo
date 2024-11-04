@@ -1,0 +1,29 @@
+syntax = "v1"
+
+type ParticipateReq {
+	Value    int64  `json:"value"`
+	Address  string `json:"address"`
+	BlockSeq int64  `json:"blockSeq"`
+}
+
+type ParticipateResp {}
+
+// @server 语法块主要用于控制对 HTTP 服务生成时 meta 信息，目前支持功能有：
+// 1. 路由分组
+// 2. 中间件声明
+// 3. 路由前缀
+// 4. 超时配置
+// 5. jwt 鉴权开关
+// 所有声明仅对当前 service 中的路由有效
+@server (
+	// 定义一个超时时长为 3 秒的超时配置，这里可填写为 time.Duration 的字符串形式，详情可参考
+	// https://pkg.go.dev/time#Duration.String
+	timeout: 3s
+)
+// 定义一个名称为 casino 的服务
+service casino {
+	// 定义 http.HandleFunc 转换的 go 文件名称及方法，每个接口都会跟一个 handler
+	@handler ParticipateHandler
+	post /api/participate (ParticipateReq) returns (ParticipateResp)
+}
+
