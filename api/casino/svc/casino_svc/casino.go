@@ -38,7 +38,10 @@ func (s *CasinoSvc) CalculateBonus(blockSeq int64, global *model.Global) error {
 	}
 
 	// 计算分红
-	bonusAmount := float64(global.PresentIncome) / float64(global.DepositAmount)
+	bonusAmount := float64(0)
+	if global.DepositAmount > 0 {
+		bonusAmount = float64(global.PresentIncome) / float64(global.DepositAmount)
+	}
 
 	// 存储分红
 	creatingBonus := &model.Bonus{
