@@ -8,6 +8,13 @@ type ParticipateReq {
 
 type ParticipateResp {}
 
+type ClaimBonusReq {
+	Address  string `json:"address"`
+	BlockSeq int64  `json:"blockSeq"`
+}
+
+type ClaimBonusResp {}
+
 // @server 语法块主要用于控制对 HTTP 服务生成时 meta 信息，目前支持功能有：
 // 1. 路由分组
 // 2. 中间件声明
@@ -25,5 +32,8 @@ service casino {
 	// 定义 http.HandleFunc 转换的 go 文件名称及方法，每个接口都会跟一个 handler
 	@handler ParticipateHandler
 	post /api/participate (ParticipateReq) returns (ParticipateResp)
+
+	@handler ClaimBonusHandler
+	post /api/claimBonus (ClaimBonusReq) returns (ClaimBonusResp)
 }
 

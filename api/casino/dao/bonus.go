@@ -35,6 +35,33 @@ func (d *BonusDao) FilterRec(tx *gorm.DB, condEq, condNeq map[string]any, order 
 	return getRec, nil
 }
 
+// FilterRecs 过滤多条记录
+func (d *BonusDao) FilterRecs(tx *gorm.DB, condEq, condNeq, condIn map[string]interface{}, dbOrder []string) ([]*model.Bonus, error) {
+	getRecs := make([]*model.Bonus, 0)
+	ses := tx.Table(model.DefaultBonus.TableName())
+	for k, v := range condEq {
+		ses.Where(fmt.Sprintf("%s = ?", k), v)
+	}
+	for k, v := range condNeq {
+		ses.Where(fmt.Sprintf("%s <> ?", k), v)
+	}
+	for k, v := range condIn {
+		ses.Where(fmt.Sprintf("%s IN ?", k), v)
+	}
+	parentCode, ok := condEq["parentCode"]
+	if ok && fmt.Sprintf("%v", parentCode) != "top" {
+		ses.Or(fmt.Sprintf("( platform_api_code = '%v' AND parentCode = '%v')", parentCode, "top"))
+	}
+	for _, v := range dbOrder {
+		ses.Order(v)
+	}
+	err := ses.Find(&getRecs).Error
+	if err != nil {
+		return nil, err
+	}
+	return getRecs, nil
+}
+
 // Updates 更新
 func (d *BonusDao) Updates(tx *gorm.DB, data *model.Bonus, sel []any) (*model.Bonus, error) {
 	ses := tx.Table(data.TableName())

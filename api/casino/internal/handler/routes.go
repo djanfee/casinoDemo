@@ -15,6 +15,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodPost,
+				Path:    "/api/claimBonus",
+				Handler: ClaimBonusHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
 				Path:    "/api/participate",
 				Handler: ParticipateHandler(serverCtx),
 			},
