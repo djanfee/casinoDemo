@@ -9,3 +9,8 @@ Mysql:
     User: "root"
     Pwd: "123456"
     DbName: "casino"
+
+RedisConf:
+  Host: 192.168.0.10:6371,192.168.0.10:6372,192.168.0.10:6373
+  Type: cluster
+  Pass: "123456"

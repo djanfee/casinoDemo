@@ -10,6 +10,7 @@ import (
 	"casinoDemo/api/casino/svc/casino_svc"
 
 	"github.com/zeromicro/go-zero/core/conf"
+	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/rest"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -34,7 +35,10 @@ func main() {
 		panic(err)
 	}
 
-	casinoSvc := casino_svc.NewCasinoSvc(casinoDb)
+	// 初始化redis
+	redisCli := redis.MustNewRedis(c.RedisConf)
+
+	casinoSvc := casino_svc.NewCasinoSvc(redisCli)
 
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
