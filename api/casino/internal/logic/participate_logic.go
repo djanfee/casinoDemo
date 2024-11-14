@@ -53,42 +53,18 @@ func (l *ParticipateLogic) Participate(req *types.ParticipateReq) (resp *types.P
 		return nil, err
 	}
 
-	// 当前轮次
-	remainder := req.BlockSeq % casino_svc.OneDayBlocks
-	curRound := int64(0)
-	if remainder == 0 {
-		curRound = req.BlockSeq / casino_svc.OneDayBlocks
-	} else {
-		curRound = req.BlockSeq/casino_svc.OneDayBlocks + 1
+	// 获取当前轮次和未分红轮次以及是否可以开启下一轮
+	_, unBonusRound, canNextRound, err := l.svcCtx.CasinoSvc.GetCurrentRoundAndUnBonusRound(l.ctx, req.BlockSeq)
+	if err != nil {
+		logx.WithContext(l.ctx).Errorf("get current round and un bonus round error: %v", err)
+		return nil, err
 	}
 
-	// 未分红轮次
-	canNextRound := false
-	unBonusRound := curRound - l.svcCtx.CasinoSvc.GlobalData.CompletedRound - 1
-	if unBonusRound >= 1 {
-		canNextRound = true
-	}
-
-	// 开启下一轮
+	// 是否开启下一轮
 	if canNextRound {
-		// 计算分红
-		err = l.svcCtx.CasinoSvc.CalculateBonus(l.ctx, unBonusRound)
+		err = l.svcCtx.CasinoSvc.StartNextRound(l.ctx, unBonusRound)
 		if err != nil {
-			logx.WithContext(l.ctx).Errorf("calculate bonus error: %v", err)
-			return nil, err
-		}
-
-		// 处理新增质押
-		err = l.svcCtx.CasinoSvc.HandleNewDeposit(l.ctx)
-		if err != nil {
-			logx.WithContext(l.ctx).Errorf("handle new deposit error: %v", err)
-			return nil, err
-		}
-
-		// 处理取款
-		err = l.svcCtx.CasinoSvc.HandleWithdraw(l.ctx)
-		if err != nil {
-			logx.WithContext(l.ctx).Errorf("handle withdraw error: %v", err)
+			logx.WithContext(l.ctx).Errorf("start next round error: %v", err)
 			return nil, err
 		}
 	}

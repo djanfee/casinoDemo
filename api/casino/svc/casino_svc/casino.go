@@ -180,6 +180,44 @@ func (s *CasinoSvc) ResetWithdrawUserList(ctx context.Context) error {
 	return nil
 }
 
+// AddUserToWithdrawUserList 添加用户到提现用户列表
+func (s *CasinoSvc) AddUserToWithdrawUserList(ctx context.Context, userData *UserData) error {
+	if userData == nil {
+		logx.WithContext(ctx).Errorf("empty user data")
+		return fmt.Errorf("empty user data")
+	}
+	userDataBytes, err := json.Marshal(userData)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("json marshal error. err:%v data:%v", err, userData)
+		return err
+	}
+	err = s.RedisCli.HsetCtx(ctx, s.GetWithdrawUserListRedisKey(), userData.Address, string(userDataBytes))
+	if err != nil {
+		logx.WithContext(ctx).Errorf("set redis error. err:%v key:%v data:%v", err, userData.Address, string(userDataBytes))
+		return err
+	}
+	return nil
+}
+
+// GetUserFromWithdrawUserList 从提现用户列表中获取用户
+func (s *CasinoSvc) GetUserFromWithdrawUserList(ctx context.Context, address string) (*UserData, error) {
+	userDataStr, err := s.RedisCli.HgetCtx(ctx, s.GetWithdrawUserListRedisKey(), address)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		logx.WithContext(ctx).Errorf("get redis error. err:%v key:%v", err, address)
+		return nil, err
+	}
+	if userDataStr == "" {
+		return nil, nil
+	}
+	userData := &UserData{}
+	err = json.Unmarshal([]byte(userDataStr), userData)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("unmarshal user data error. err:%v data:%v", err, userDataStr)
+		return nil, err
+	}
+	return userData, nil
+}
+
 // DeleteUserData 删除用户数据
 func (s *CasinoSvc) DeleteUserData(ctx context.Context, address string) error {
 	_, err := s.RedisCli.HdelCtx(ctx, s.GetUserListRedisKey(), address)
@@ -198,14 +236,17 @@ func (s *CasinoSvc) HandleWithdraw(ctx context.Context) error {
 		logx.WithContext(ctx).Errorf("get all withdraw users error. err:%v", err)
 		return err
 	}
-	// 计算提款金额
+
 	decrAmount := int64(0)
+	// 将提款用户从用户列表中删除并计算提款金额
 	for _, v := range userList {
-		decrAmount += v.DepositAmount
-	}
-	s.GlobalData.DepositAmount -= decrAmount
-	// 将提款用户从用户列表中删除
-	for _, v := range userList {
+		tmpUserData, err := s.GetUserData(ctx, v.Address)
+		if err != nil {
+			logx.WithContext(ctx).Errorf("get user data error. err:%v data:%v", err, v)
+			return err
+		}
+		decrAmount += tmpUserData.DepositAmount
+
 		err = s.DeleteUserData(ctx, v.Address)
 		if err != nil {
 			logx.WithContext(ctx).Errorf("delete user data error. err:%v data:%v", err, v)
@@ -376,6 +417,51 @@ func (s *CasinoSvc) SaveBonus(ctx context.Context, bonus *Bonus) error {
 			logx.WithContext(ctx).Error("set redis error. err:%v key:%v data:%v", err, fmt.Sprintf("%v", bonus.BeginRound), string(bonusBytes))
 			return err
 		}
+	}
+	return nil
+}
+
+// GetCurrentRoundAndUnBonusRound 获取当前轮次和未分红轮次以及是否可以开启下一轮
+func (s *CasinoSvc) GetCurrentRoundAndUnBonusRound(ctx context.Context, blockSeq int64) (curRound int64, unBonusRound int64, canNextRound bool, err error) {
+	// 当前轮次
+	remainder := blockSeq % OneDayBlocks
+	curRound = int64(0)
+	if remainder == 0 {
+		curRound = blockSeq / OneDayBlocks
+	} else {
+		curRound = blockSeq/OneDayBlocks + 1
+	}
+
+	// 未分红轮次
+	canNextRound = false
+	unBonusRound = curRound - s.GlobalData.CompletedRound - 1
+	if unBonusRound >= 1 {
+		canNextRound = true
+	}
+	return curRound, unBonusRound, canNextRound, nil
+}
+
+// StartNextRound 开启下一轮
+func (s *CasinoSvc) StartNextRound(ctx context.Context, unBonusRound int64) error {
+	// 计算分红
+	err := s.CalculateBonus(ctx, unBonusRound)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("calculate bonus error: %v", err)
+		return err
+	}
+
+	// 处理新增质押
+	err = s.HandleNewDeposit(ctx)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("handle new deposit error: %v", err)
+		return err
+	}
+
+	// 处理取款
+	err = s.HandleWithdraw(ctx)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("handle withdraw error: %v", err)
+		return err
 	}
 	return nil
 }
