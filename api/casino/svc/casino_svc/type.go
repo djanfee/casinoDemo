@@ -5,7 +5,7 @@ type GloablData struct {
 	DepositAmount  int64 // 总存款
 	CompletedRound int64 // 已完结的轮次
 	PresentIncome  int64 // 当前轮次总盈利
-	TotalIncome    int64 // 总盈利
+	LastIncome     int64 // 上轮总盈利
 }
 
 // UserData 用户数据

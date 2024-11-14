@@ -27,7 +27,7 @@ func (s *CasinoSvc) CalculateBonus(ctx context.Context, unBonusRound int64) erro
 	// 计算分红
 	bonusAmount := float64(0)
 	if s.GlobalData.DepositAmount > 0 {
-		bonusAmount = float64(s.GlobalData.PresentIncome) / float64(s.GlobalData.DepositAmount)
+		bonusAmount = float64(s.GlobalData.LastIncome) / float64(s.GlobalData.DepositAmount)
 	}
 
 	// 存储分红
@@ -47,7 +47,7 @@ func (s *CasinoSvc) CalculateBonus(ctx context.Context, unBonusRound int64) erro
 
 // GetNextRoundUserListRedisKey 获取新增的下一轮用户列表的redis key
 func (s *CasinoSvc) GetNextRoundUserListRedisKey() string {
-	return fmt.Sprintf("casino:nextRoundUserList")
+	return "casino:nextRoundUserList"
 }
 
 // AddUserToNextRoundUserList 添加用户到新增的下一轮用户列表
@@ -126,7 +126,7 @@ func (s *CasinoSvc) GetAllWithdrawUsers(ctx context.Context) ([]*UserData, error
 		logx.WithContext(ctx).Errorf("get users from hashmap error. err:%v", err)
 		return nil, err
 	}
-	userList := make([]*UserData, len(userListMap))
+	userList := make([]*UserData, 0)
 	for _, v := range userListMap {
 		tmpUserData := &UserData{}
 		err = json.Unmarshal([]byte(v), tmpUserData)
@@ -148,18 +148,30 @@ func (s *CasinoSvc) HandleNewDeposit(ctx context.Context) error {
 		return err
 	}
 	// 将新增用户添加到用户列表
-	for _, v := range userList {
-		err = s.SaveUserData(ctx, v)
-		if err != nil {
-			logx.WithContext(ctx).Errorf("save user data error. err:%v data:%v", err, v)
-			return err
-		}
-	}
-	// 计算新增质押并加入到总质押
 	incrAmount := int64(0)
 	for _, v := range userList {
 		incrAmount += v.DepositAmount
+		oldUser, err := s.GetUserData(ctx, v.Address)
+		if err != nil {
+			logx.WithContext(ctx).Errorf("get user data error. err:%v data:%v", err, v)
+			return err
+		}
+		if oldUser != nil {
+			oldUser.DepositAmount += v.DepositAmount
+			err = s.SaveUserData(ctx, oldUser)
+			if err != nil {
+				logx.WithContext(ctx).Errorf("save user data error. err:%v data:%v", err, oldUser)
+				return err
+			}
+		} else {
+			err = s.SaveUserData(ctx, v)
+			if err != nil {
+				logx.WithContext(ctx).Errorf("save user data error. err:%v data:%v", err, v)
+				return err
+			}
+		}
 	}
+	// 计算新增质押并加入到总质押
 	s.GlobalData.DepositAmount += incrAmount
 	// 重置新增用户列表
 	err = s.ResetNextRoundUserList(ctx)
@@ -450,6 +462,13 @@ func (s *CasinoSvc) StartNextRound(ctx context.Context, unBonusRound int64) erro
 		return err
 	}
 
+	// 处理取款
+	err = s.HandleWithdraw(ctx)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("handle withdraw error: %v", err)
+		return err
+	}
+
 	// 处理新增质押
 	err = s.HandleNewDeposit(ctx)
 	if err != nil {
@@ -457,10 +476,13 @@ func (s *CasinoSvc) StartNextRound(ctx context.Context, unBonusRound int64) erro
 		return err
 	}
 
-	// 处理取款
-	err = s.HandleWithdraw(ctx)
+	s.GlobalData.LastIncome = s.GlobalData.PresentIncome
+	s.GlobalData.PresentIncome = 0
+	s.GlobalData.CompletedRound += unBonusRound
+
+	err = s.SaveGlobalData(ctx)
 	if err != nil {
-		logx.WithContext(ctx).Errorf("handle withdraw error: %v", err)
+		logx.WithContext(ctx).Errorf("save global data error: %v", err)
 		return err
 	}
 	return nil

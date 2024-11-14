@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 
 	"casinoDemo/api/casino/internal/svc"
 	"casinoDemo/api/casino/internal/types"
@@ -32,6 +33,32 @@ func (l *ParticipateLogic) Participate(req *types.ParticipateReq) (resp *types.P
 		return nil, err
 	}
 
+	// 获取当前轮次和未分红轮次以及是否可以开启下一轮
+	_, unBonusRound, canNextRound, err := l.svcCtx.CasinoSvc.GetCurrentRoundAndUnBonusRound(l.ctx, req.BlockSeq)
+	if err != nil {
+		logx.WithContext(l.ctx).Errorf("get current round and un bonus round error: %v", err)
+		return nil, err
+	}
+
+	// 是否开启下一轮
+	if canNextRound {
+		err = l.svcCtx.CasinoSvc.StartNextRound(l.ctx, unBonusRound)
+		if err != nil {
+			logx.WithContext(l.ctx).Errorf("start next round error: %v", err)
+			return nil, err
+		}
+	}
+
+	// 检查是否已在用户列表中
+	existedUser, err := l.svcCtx.CasinoSvc.GetUserData(l.ctx, req.Address)
+	if err != nil {
+		logx.WithContext(l.ctx).Errorf("get user data error. err:%v", err)
+		return nil, err
+	}
+	if existedUser != nil {
+		return nil, errors.New("user already exists")
+	}
+
 	// 从下一轮用户列表中查询用户数据并更新
 	user, err := l.svcCtx.CasinoSvc.GetUserFromNextRoundUserList(l.ctx, req.Address)
 	if err != nil {
@@ -51,22 +78,6 @@ func (l *ParticipateLogic) Participate(req *types.ParticipateReq) (resp *types.P
 	if err != nil {
 		logx.WithContext(l.ctx).Errorf("add user to next round user list error: %v", err)
 		return nil, err
-	}
-
-	// 获取当前轮次和未分红轮次以及是否可以开启下一轮
-	_, unBonusRound, canNextRound, err := l.svcCtx.CasinoSvc.GetCurrentRoundAndUnBonusRound(l.ctx, req.BlockSeq)
-	if err != nil {
-		logx.WithContext(l.ctx).Errorf("get current round and un bonus round error: %v", err)
-		return nil, err
-	}
-
-	// 是否开启下一轮
-	if canNextRound {
-		err = l.svcCtx.CasinoSvc.StartNextRound(l.ctx, unBonusRound)
-		if err != nil {
-			logx.WithContext(l.ctx).Errorf("start next round error: %v", err)
-			return nil, err
-		}
 	}
 
 	// 存储全局数据
